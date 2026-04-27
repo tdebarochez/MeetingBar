@@ -79,7 +79,7 @@ struct PopoverView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
 
-            Button(action: { onJoin(meeting.videoURL) }) {
+            Button(action: { onJoin(meeting.joinURL) }) {
                 HStack {
                     Image(systemName: iconName(for: meeting.provider))
                     Text("Join \(meeting.provider.rawValue)")

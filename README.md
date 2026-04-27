@@ -4,11 +4,14 @@ A minimal macOS menu bar app that shows a countdown to your next meeting and pop
 
 ## Features
 
-- Menu bar countdown: `2h 15m`, `42m`, `45s`, `now`, `-3m`
+- Menu bar countdown: `+2h`, `42m`, `45s`, `now`, `-12m` (time left until meeting ends)
+- Calendar icon in the menu bar when no meetings are scheduled
 - Reads meetings from the macOS Calendar app (EventKit), so iCloud / Google Calendar / Exchange all work via macOS's Internet Accounts
 - Only counts meetings you've **accepted** (or organized)
 - Only counts meetings that have a **video link** (Google Meet / Zoom / Teams)
 - Auto-popover below the icon 2 minutes before start, with a Join button
+- Popover shows **attendees** with acceptance status (accepted, declined, tentative, pending) — hover to copy email addresses
+- Popover shows **meeting notes** (scrollable, selectable text) with Google Calendar boilerplate auto-stripped
 - One click → opens the Meet/Zoom/Teams URL in your browser
 - Zero dependencies, ~2 MB build
 
@@ -50,7 +53,7 @@ The list refreshes automatically when EventKit posts `EKEventStoreChanged` (some
 
 - **Change the 2-minute popover window** → `StatusBarController.checkAutoPopover()`, the `secondsUntilStart <= 120` check
 - **Add more providers** → `CalendarService.findVideoURL`, add a regex + case to `Meeting.VideoProvider`
-- **Show icon without countdown** → set `button.title = ""` in `updateStatusItemTitle()`
+- **Change the countdown format** → `StatusBarController.countdownString(meeting:)`
 - **Launch at login** → use `SMAppService.mainApp.register()` from `ServiceManagement` (one-line API on macOS 13+)
 - **Notifications instead of popover** → swap `showPopover()` for a `UNUserNotificationCenter` request in `checkAutoPopover()`
 

@@ -12,6 +12,7 @@ struct Meeting: Identifiable, Equatable {
     let provider: VideoProvider
     let attendees: [Attendee]
     let notes: String?
+    let userEmail: String?
 
     enum VideoProvider: String {
         case meet = "Google Meet"
@@ -25,6 +26,17 @@ struct Meeting: Identifiable, Equatable {
         let email: String?
         let status: EKParticipantStatus
         let isCurrentUser: Bool
+    }
+
+    var joinURL: URL {
+        guard provider == .meet,
+              let email = userEmail,
+              var components = URLComponents(url: videoURL, resolvingAgainstBaseURL: false)
+        else { return videoURL }
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "authuser", value: email))
+        components.queryItems = items
+        return components.url ?? videoURL
     }
 }
 
@@ -112,7 +124,7 @@ final class CalendarService: ObservableObject {
         // Filter: accepted only, has a video link, hasn't ended yet.
         let candidates: [Meeting] = events.compactMap { event in
             guard event.endDate > now else { return nil }
-            guard isAccepted(event) else { return nil }
+            guard isPersonallyAccepted(event) else { return nil }
             guard let (url, provider) = extractVideoURL(from: event) else { return nil }
             guard let id = event.eventIdentifier else { return nil }
             let attendees = (event.attendees ?? []).map { participant in
@@ -126,6 +138,9 @@ final class CalendarService: ObservableObject {
                     isCurrentUser: participant.isCurrentUser
                 )
             }
+            let userEmail = attendees.first(where: { $0.isCurrentUser })?.email
+                ?? Self.email(from: event.organizer)
+                ?? event.calendar.source?.title
             return Meeting(
                 id: id,
                 title: event.title ?? "Untitled",
@@ -134,7 +149,8 @@ final class CalendarService: ObservableObject {
                 videoURL: url,
                 provider: provider,
                 attendees: attendees,
-                notes: Self.cleanNotes(event.notes)
+                notes: Self.cleanNotes(event.notes),
+                userEmail: userEmail
             )
         }
 
@@ -145,6 +161,11 @@ final class CalendarService: ObservableObject {
 
     // MARK: - Helpers
 
+    private static func email(from participant: EKParticipant?) -> String? {
+        guard let participant, participant.url.scheme == "mailto" else { return nil }
+        return participant.url.absoluteString.replacingOccurrences(of: "mailto:", with: "")
+    }
+
     private static func cleanNotes(_ notes: String?) -> String? {
         guard let notes else { return nil }
         if let range = notes.range(of: "-::~:~::~:~:~:~:~:~:~:~:~:~:~:~") {
@@ -154,23 +175,16 @@ final class CalendarService: ObservableObject {
         return notes
     }
 
-    /// "Accepted" means either you're the organizer, or your attendee
-    /// status on the event is .accepted. EKEvents don't directly expose
-    /// "my response", so we find the attendee whose isCurrentUser is true.
-    private func isAccepted(_ event: EKEvent) -> Bool {
-        // Organizer case: if you created it, you're attending.
+    private func isPersonallyAccepted(_ event: EKEvent) -> Bool {
         if event.organizer?.isCurrentUser == true {
             return true
         }
-        // No attendee list (personal calendar events) → treat as accepted.
         guard let attendees = event.attendees, !attendees.isEmpty else {
-            return true
+            return !event.calendar.isSubscribed
         }
-        // Find yourself in the attendee list and check participant status.
         if let me = attendees.first(where: { $0.isCurrentUser }) {
             return me.participantStatus == .accepted
         }
-        // No match for "me" in attendees → we can't tell, so skip it.
         return false
     }
 
