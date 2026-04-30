@@ -154,9 +154,18 @@ final class CalendarService: ObservableObject {
             )
         }
 
-        // Earliest upcoming wins. If something is already in progress and
-        // has a video link, we still show it — you might want to join late.
-        nextMeeting = candidates.min(by: { $0.startDate < $1.startDate })
+        // Pick the most relevant meeting. When two meetings are
+        // back-to-back, switch to the upcoming one 5 minutes early.
+        let sorted = candidates.sorted { $0.startDate < $1.startDate }
+        if sorted.count >= 2,
+           let first = sorted.first,
+           first.startDate < now,
+           sorted[1].startDate <= first.endDate,
+           sorted[1].startDate.timeIntervalSince(now) <= 5 * 60 {
+            nextMeeting = sorted[1]
+        } else {
+            nextMeeting = sorted.first
+        }
     }
 
     // MARK: - Helpers
@@ -175,12 +184,22 @@ final class CalendarService: ObservableObject {
         return notes
     }
 
+    private func isOwnCalendar(_ calendar: EKCalendar) -> Bool {
+        let title = calendar.title
+        let sourceTitle = calendar.source?.title ?? ""
+        if title.contains("@") && sourceTitle.contains("@") && title != sourceTitle {
+            return false
+        }
+        return !calendar.isSubscribed
+    }
+
     private func isPersonallyAccepted(_ event: EKEvent) -> Bool {
+        guard isOwnCalendar(event.calendar) else { return false }
         if event.organizer?.isCurrentUser == true {
             return true
         }
         guard let attendees = event.attendees, !attendees.isEmpty else {
-            return !event.calendar.isSubscribed
+            return true
         }
         if let me = attendees.first(where: { $0.isCurrentUser }) {
             return me.participantStatus == .accepted
