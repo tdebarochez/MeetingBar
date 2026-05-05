@@ -73,9 +73,15 @@ final class CalendarService: ObservableObject {
     // MARK: - Authorization
 
     func requestAccess() async {
+        authorizationStatus = EKEventStore.authorizationStatus(for: .event)
+
+        if authorizationStatus == .fullAccess {
+            refresh()
+            startPeriodicRefresh()
+            return
+        }
+
         do {
-            // macOS 14+ API. The Info.plist must contain
-            // NSCalendarsFullAccessUsageDescription or this silently fails.
             let granted = try await eventStore.requestFullAccessToEvents()
             authorizationStatus = EKEventStore.authorizationStatus(for: .event)
             if granted {
